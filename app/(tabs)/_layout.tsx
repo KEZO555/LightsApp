@@ -3,8 +3,7 @@ import { Tabs } from "expo-router";
 import { Navbar, TabConfigItem } from "@/components/Navbar";
 
 export const TABS_CONFIG: ReadonlyArray<TabConfigItem> = [
-    { name: "Liked Songs", screenName: "index", iconName: "home" },
-    { name: "Search", screenName: "search", iconName: "search" },
+    { name: "Chats", screenName: "index", iconName: "chat-bubble" },
     { name: "Settings", screenName: "settings", iconName: "settings" },
 ] as const;
 

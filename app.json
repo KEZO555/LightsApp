@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "appname",
-    "slug": "appname",
+    "name": "LightsApp",
+    "slug": "lightsapp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "appname",
+    "scheme": "lightsapp",
     "newArchEnabled": true,
     "icon": "./assets/images/icon.png",
     "android": {
       "backgroundColor": "#000000",
-      "package": "com.vandam.appname"
+      "package": "com.vandam.lightsapp"
     },
     "plugins": [
       "expo-router",

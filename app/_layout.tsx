@@ -7,11 +7,15 @@ import {
     InvertColorsProvider,
     useInvertColors,
 } from "@/contexts/InvertColorsContext";
-import { DisplayModeProvider } from "@/contexts/DisplayModeContext";
+import { ServerConfigProvider } from "@/contexts/ServerConfigContext";
+import { WebSocketProvider } from "@/contexts/WebSocketContext";
+import { ConnectionProvider } from "@/contexts/ConnectionContext";
+import { ChatsProvider } from "@/contexts/ChatsContext";
+import { MessagesProvider } from "@/contexts/MessagesContext";
+import { ContactsProvider } from "@/contexts/ContactsContext";
 import * as SystemUI from "expo-system-ui";
-import * as NavigationBar from 'expo-navigation-bar';
-import * as SplashScreen from 'expo-splash-screen';
-
+import * as NavigationBar from "expo-navigation-bar";
+import * as SplashScreen from "expo-splash-screen";
 
 function RootNavigation() {
     const { invertColors } = useInvertColors();
@@ -32,9 +36,13 @@ function RootNavigation() {
             }}
         >
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="chat" />
+            <Stack.Screen name="qr-setup" />
+            <Stack.Screen name="new-chat" />
+            <Stack.Screen name="media-viewer" />
             <Stack.Screen name="settings/customise" />
             <Stack.Screen name="settings/customise-interface" />
-            <Stack.Screen name="settings/display-mode" />
+            <Stack.Screen name="settings/server" />
             <Stack.Screen name="confirm" />
         </Stack>
     );
@@ -61,11 +69,21 @@ export default function RootLayout() {
 
     return (
         <InvertColorsProvider>
-            <DisplayModeProvider>
-                <HapticProvider>
-                    <RootNavigation />
-                </HapticProvider>
-            </DisplayModeProvider>
+            <HapticProvider>
+                <ServerConfigProvider>
+                    <WebSocketProvider>
+                        <ConnectionProvider>
+                            <ContactsProvider>
+                                <ChatsProvider>
+                                    <MessagesProvider>
+                                        <RootNavigation />
+                                    </MessagesProvider>
+                                </ChatsProvider>
+                            </ContactsProvider>
+                        </ConnectionProvider>
+                    </WebSocketProvider>
+                </ServerConfigProvider>
+            </HapticProvider>
         </InvertColorsProvider>
     );
 }
