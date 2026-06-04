@@ -1,83 +1,62 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { wsClient } from "@/utils/websocket";
-
-interface ContactInfo {
-    id: string;
-    name: string;
-    notify?: string;
-    profilePicUrl?: string;
-    isGroup: boolean;
-}
-
-interface PresenceInfo {
-    chatId: string;
-    participant?: string;
-    status: "available" | "unavailable" | "composing" | "recording" | "paused";
-    lastSeen?: number;
-}
+import { useWebSocket } from "./WebSocketContext";
+import type { ContactInfo, PresenceInfo } from "@/utils/types";
 
 interface ContactsContextValue {
     contacts: ContactInfo[];
-    presences: Map<string, PresenceInfo>;
-    getContact: (id: string) => ContactInfo | undefined;
     getPresence: (chatId: string) => PresenceInfo | undefined;
+    subscribePresence: (chatId: string) => void;
+    resolveNumber: (number: string) => Promise<{ jid: string; exists: boolean }>;
 }
 
 const ContactsContext = createContext<ContactsContextValue>({
     contacts: [],
-    presences: new Map(),
-    getContact: () => undefined,
     getPresence: () => undefined,
+    subscribePresence: () => {},
+    resolveNumber: async () => ({ jid: "", exists: false }),
 });
 
 export function ContactsProvider({ children }: { children: React.ReactNode }) {
     const [contacts, setContacts] = useState<ContactInfo[]>([]);
-    const [presences, setPresences] = useState<Map<string, PresenceInfo>>(new Map());
+    const presence = useRef<Map<string, PresenceInfo>>(new Map());
+    const [, setVersion] = useState(0);
+    const { request, send } = useWebSocket();
 
     useEffect(() => {
-        const onContactsUpsert = (data: ContactInfo[]) => {
-            setContacts((prev) => {
-                const map = new Map(prev.map((c) => [c.id, c]));
-                for (const contact of data) {
-                    map.set(contact.id, contact);
-                }
-                return Array.from(map.values());
-            });
+        const onContacts = (data: ContactInfo[]) => setContacts(data);
+        const onPresence = (p: PresenceInfo) => {
+            presence.current.set(p.chatId, p);
+            setVersion((v) => v + 1);
         };
-
-        const onPresenceUpdate = (data: PresenceInfo) => {
-            setPresences((prev) => {
-                const next = new Map(prev);
-                next.set(data.chatId, data);
-                return next;
-            });
-        };
-
-        wsClient.on("contacts:upsert", onContactsUpsert);
-        wsClient.on("presence:update", onPresenceUpdate);
-
+        wsClient.on("contacts:upsert", onContacts);
+        wsClient.on("presence:update", onPresence);
         return () => {
-            wsClient.removeListener("contacts:upsert", onContactsUpsert);
-            wsClient.removeListener("presence:update", onPresenceUpdate);
+            wsClient.removeListener("contacts:upsert", onContacts);
+            wsClient.removeListener("presence:update", onPresence);
         };
     }, []);
 
-    const getContact = useCallback(
-        (id: string) => contacts.find((c) => c.id === id),
-        [contacts]
+    const getPresence = useCallback((chatId: string) => presence.current.get(chatId), []);
+
+    const subscribePresence = useCallback(
+        (chatId: string) => send("presence:subscribe", { chatId }),
+        [send],
     );
 
-    const getPresence = useCallback(
-        (chatId: string) => presences.get(chatId),
-        [presences]
+    const resolveNumber = useCallback(
+        (number: string) =>
+            request<{ jid: string; exists: boolean }>("contact:resolve", { number }),
+        [request],
     );
 
     return (
-        <ContactsContext.Provider value={{ contacts, presences, getContact, getPresence }}>
+        <ContactsContext.Provider
+            value={{ contacts, getPresence, subscribePresence, resolveNumber }}
+        >
             {children}
         </ContactsContext.Provider>
     );
 }
 
 export const useContacts = () => useContext(ContactsContext);
-export type { ContactInfo, PresenceInfo };

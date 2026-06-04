@@ -3,6 +3,10 @@
 # dependencies
 node_modules/
 
+# bridge server runtime state (contains WhatsApp credentials & cached media)
+server/auth_state/
+server/media/
+
 # Expo
 .expo/
 dist/

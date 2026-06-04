@@ -1,29 +1,35 @@
+// Singleton WebSocket client with auto-reconnect and request/response support.
+
 type WSState = "disconnected" | "connecting" | "connected";
 type Listener = (...args: any[]) => void;
 
 class WebSocketClient {
     private ws: WebSocket | null = null;
-    private url: string = "";
+    private url = "";
     private state: WSState = "disconnected";
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private reconnectAttempts = 0;
-    private maxReconnectAttempts = 20;
-    private pendingRequests = new Map<string, { resolve: (data: any) => void; timer: ReturnType<typeof setTimeout> }>();
+    private readonly maxReconnectAttempts = 50;
+    private pending = new Map<string, { resolve: (d: any) => void; timer: ReturnType<typeof setTimeout> }>();
     private requestCounter = 0;
     private listeners = new Map<string, Set<Listener>>();
 
-    on(event: string, listener: Listener) {
+    on(event: string, fn: Listener) {
         if (!this.listeners.has(event)) this.listeners.set(event, new Set());
-        this.listeners.get(event)!.add(listener);
+        this.listeners.get(event)!.add(fn);
     }
 
-    removeListener(event: string, listener: Listener) {
-        this.listeners.get(event)?.delete(listener);
+    removeListener(event: string, fn: Listener) {
+        this.listeners.get(event)?.delete(fn);
     }
 
     private emit(event: string, ...args: any[]) {
         this.listeners.get(event)?.forEach((fn) => {
-            try { fn(...args); } catch (e) { console.warn("[WS] Listener error:", e); }
+            try {
+                fn(...args);
+            } catch (e) {
+                console.warn("[WS] listener error:", e);
+            }
         });
     }
 
@@ -32,53 +38,52 @@ class WebSocketClient {
     }
 
     connect(url: string) {
-        if (this.url === url && this.state === "connected") return;
-
-        this.disconnect();
+        if (this.url === url && (this.state === "connected" || this.state === "connecting")) return;
+        this.teardown();
         this.url = url;
-        this.state = "connecting";
-        this.emit("state", this.state);
+        this.setState("connecting");
 
         try {
             this.ws = new WebSocket(url);
-
-            this.ws.onopen = () => {
-                this.state = "connected";
-                this.reconnectAttempts = 0;
-                this.emit("state", this.state);
-            };
-
-            this.ws.onmessage = (event) => {
-                try {
-                    const msg = JSON.parse(event.data as string);
-                    if (msg.event?.startsWith("response:")) {
-                        const reqId = msg.event.replace("response:", "");
-                        const pending = this.pendingRequests.get(reqId);
-                        if (pending) {
-                            clearTimeout(pending.timer);
-                            this.pendingRequests.delete(reqId);
-                            pending.resolve(msg.data);
-                        }
-                    } else {
-                        this.emit(msg.event, msg.data);
-                    }
-                } catch (e) {
-                    console.warn("[WS] Failed to parse message:", e);
-                }
-            };
-
-            this.ws.onclose = () => {
-                this.state = "disconnected";
-                this.emit("state", this.state);
-                this.scheduleReconnect();
-            };
-
-            this.ws.onerror = () => {};
-        } catch (e) {
-            this.state = "disconnected";
-            this.emit("state", this.state);
+        } catch {
+            this.setState("disconnected");
             this.scheduleReconnect();
+            return;
         }
+
+        this.ws.onopen = () => {
+            this.reconnectAttempts = 0;
+            this.setState("connected");
+        };
+
+        this.ws.onmessage = (event) => {
+            let msg: { event?: string; data?: unknown };
+            try {
+                msg = JSON.parse(event.data as string);
+            } catch {
+                return;
+            }
+            if (msg.event?.startsWith("response:")) {
+                const id = msg.event.slice("response:".length);
+                const p = this.pending.get(id);
+                if (p) {
+                    clearTimeout(p.timer);
+                    this.pending.delete(id);
+                    p.resolve(msg.data);
+                }
+            } else if (msg.event) {
+                this.emit(msg.event, msg.data);
+            }
+        };
+
+        this.ws.onclose = () => {
+            this.setState("disconnected");
+            this.scheduleReconnect();
+        };
+
+        this.ws.onerror = () => {
+            /* onclose will follow */
+        };
     }
 
     disconnect() {
@@ -87,29 +92,39 @@ class WebSocketClient {
             this.reconnectTimer = null;
         }
         this.reconnectAttempts = 0;
+        this.url = "";
+        this.teardown();
+        this.setState("disconnected");
+    }
+
+    private teardown() {
         if (this.ws) {
+            this.ws.onopen = null;
+            this.ws.onmessage = null;
             this.ws.onclose = null;
             this.ws.onerror = null;
-            this.ws.onmessage = null;
-            this.ws.onopen = null;
-            this.ws.close();
+            try {
+                this.ws.close();
+            } catch {
+                /* ignore */
+            }
             this.ws = null;
         }
-        for (const [, pending] of this.pendingRequests) {
-            clearTimeout(pending.timer);
-        }
-        this.pendingRequests.clear();
-        this.state = "disconnected";
-        this.emit("state", this.state);
+        for (const p of this.pending.values()) clearTimeout(p.timer);
+        this.pending.clear();
+    }
+
+    private setState(state: WSState) {
+        if (this.state === state) return;
+        this.state = state;
+        this.emit("state", state);
     }
 
     private scheduleReconnect() {
-        if (this.reconnectAttempts >= this.maxReconnectAttempts || !this.url) return;
+        if (!this.url || this.reconnectAttempts >= this.maxReconnectAttempts) return;
         this.reconnectAttempts++;
-        const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
-        this.reconnectTimer = setTimeout(() => {
-            this.connect(this.url);
-        }, delay);
+        const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 20000);
+        this.reconnectTimer = setTimeout(() => this.connect(this.url), delay);
     }
 
     send(event: string, data: unknown) {
@@ -119,22 +134,18 @@ class WebSocketClient {
     }
 
     request<T = unknown>(event: string, data: unknown, timeout = 15000): Promise<T> {
-        return new Promise((resolve, reject) => {
+        return new Promise<T>((resolve, reject) => {
+            if (this.ws?.readyState !== WebSocket.OPEN) {
+                reject(new Error("WebSocket not connected"));
+                return;
+            }
             const id = `req_${++this.requestCounter}`;
             const timer = setTimeout(() => {
-                this.pendingRequests.delete(id);
-                reject(new Error(`Request ${event} timed out`));
+                this.pending.delete(id);
+                reject(new Error(`Request "${event}" timed out`));
             }, timeout);
-
-            this.pendingRequests.set(id, { resolve, timer });
-
-            if (this.ws?.readyState === WebSocket.OPEN) {
-                this.ws.send(JSON.stringify({ event, data, id }));
-            } else {
-                clearTimeout(timer);
-                this.pendingRequests.delete(id);
-                reject(new Error("WebSocket not connected"));
-            }
+            this.pending.set(id, { resolve, timer });
+            this.ws.send(JSON.stringify({ event, data, id }));
         });
     }
 }

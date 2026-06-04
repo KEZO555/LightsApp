@@ -1,32 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { wsClient } from "@/utils/websocket";
-
-interface ChatInfo {
-    id: string;
-    name: string;
-    isGroup: boolean;
-    unreadCount: number;
-    lastMessage: MessageInfo | null;
-    timestamp: number;
-    muted: boolean;
-    archived: boolean;
-    participantCount?: number;
-    profilePicUrl?: string;
-}
-
-interface MessageInfo {
-    id: string;
-    chatId: string;
-    fromMe: boolean;
-    sender: string;
-    senderName: string;
-    timestamp: number;
-    type: "text" | "image" | "video" | "audio" | "voice" | "document" | "sticker" | "unknown";
-    text?: string;
-    caption?: string;
-    mediaDuration?: number;
-    status?: "pending" | "sent" | "delivered" | "read";
-}
+import type { ChatInfo } from "@/utils/types";
 
 interface ChatsContextValue {
     chats: ChatInfo[];
@@ -42,35 +16,23 @@ export function ChatsProvider({ children }: { children: React.ReactNode }) {
     const [chats, setChats] = useState<ChatInfo[]>([]);
 
     useEffect(() => {
-        const onChatsUpsert = (data: ChatInfo[]) => {
-            setChats(data);
-        };
-
-        const onChatsDelete = (ids: string[]) => {
+        const onUpsert = (data: ChatInfo[]) => setChats(data);
+        const onDelete = (ids: string[]) =>
             setChats((prev) => prev.filter((c) => !ids.includes(c.id)));
-        };
 
-        wsClient.on("chats:upsert", onChatsUpsert);
-        wsClient.on("chats:delete", onChatsDelete);
-
+        wsClient.on("chats:upsert", onUpsert);
+        wsClient.on("chats:delete", onDelete);
         return () => {
-            wsClient.removeListener("chats:upsert", onChatsUpsert);
-            wsClient.removeListener("chats:delete", onChatsDelete);
+            wsClient.removeListener("chats:upsert", onUpsert);
+            wsClient.removeListener("chats:delete", onDelete);
         };
     }, []);
 
-    const getChat = useCallback(
-        (id: string) => chats.find((c) => c.id === id),
-        [chats]
-    );
+    const getChat = useCallback((id: string) => chats.find((c) => c.id === id), [chats]);
 
     return (
-        <ChatsContext.Provider value={{ chats, getChat }}>
-            {children}
-        </ChatsContext.Provider>
+        <ChatsContext.Provider value={{ chats, getChat }}>{children}</ChatsContext.Provider>
     );
 }
 
 export const useChats = () => useContext(ChatsContext);
-
-export type { ChatInfo, MessageInfo };

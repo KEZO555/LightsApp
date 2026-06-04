@@ -1,21 +1,17 @@
 import React, { memo } from "react";
 import { View, StyleSheet } from "react-native";
-import { StyledText } from "./StyledText";
-import { HapticPressable } from "./HapticPressable";
+import { MaterialIcons } from "@expo/vector-icons";
+import { StyledText } from "@/components/StyledText";
+import { HapticPressable } from "@/components/HapticPressable";
 import { useInvertColors } from "@/contexts/InvertColorsContext";
+import { formatChatTimestamp, messagePreview } from "@/utils/format";
+import type { MessageInfo } from "@/utils/types";
 import { n } from "@/utils/scaling";
-import { formatTimestamp, getMessagePreview } from "@/utils/messages";
 
 interface ChatListItemProps {
     name: string;
     isGroup: boolean;
-    lastMessage: {
-        type: string;
-        text?: string;
-        caption?: string;
-        fromMe: boolean;
-        senderName?: string;
-    } | null;
+    lastMessage: MessageInfo | null;
     timestamp: number;
     unreadCount: number;
     muted: boolean;
@@ -32,54 +28,60 @@ export const ChatListItem = memo(function ChatListItem({
     onPress,
 }: ChatListItemProps) {
     const { invertColors } = useInvertColors();
-    const textColor = invertColors ? "#000" : "#fff";
-    const dimColor = invertColors ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)";
-    const borderColor = invertColors ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.1)";
+    const fg = invertColors ? "black" : "white";
+    const dim = invertColors ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.55)";
+    const hasUnread = unreadCount > 0;
 
-    let preview = "";
-    if (lastMessage) {
-        const msgText = getMessagePreview(lastMessage);
-        if (isGroup && !lastMessage.fromMe && lastMessage.senderName) {
-            preview = `${lastMessage.senderName}: ${msgText}`;
-        } else if (lastMessage.fromMe) {
-            preview = `You: ${msgText}`;
-        } else {
-            preview = msgText;
-        }
-    }
+    const prefix =
+        lastMessage && lastMessage.fromMe ? "You: " : isGroup && lastMessage ? `${lastMessage.senderName}: ` : "";
+    const preview = lastMessage ? `${prefix}${messagePreview(lastMessage)}` : "";
 
     return (
-        <HapticPressable onPress={onPress}>
-            <View style={[styles.container, { borderBottomColor: borderColor }]}>
-                <View style={styles.content}>
-                    <View style={styles.topRow}>
-                        <StyledText style={[styles.name, { color: textColor }]} numberOfLines={1}>
-                            {name}
-                        </StyledText>
-                        <StyledText style={[styles.time, { color: unreadCount > 0 ? textColor : dimColor }]}>
-                            {timestamp > 0 ? formatTimestamp(timestamp) : ""}
-                        </StyledText>
-                    </View>
-                    <View style={styles.bottomRow}>
-                        <StyledText
-                            style={[styles.preview, { color: dimColor }]}
-                            numberOfLines={1}
-                        >
-                            {preview || " "}
-                        </StyledText>
-                        {unreadCount > 0 && (
-                            <View style={[styles.badge, { backgroundColor: textColor }]}>
-                                <StyledText
-                                    style={[
-                                        styles.badgeText,
-                                        { color: invertColors ? "#fff" : "#000" },
-                                    ]}
-                                >
-                                    {unreadCount > 99 ? "99+" : unreadCount}
-                                </StyledText>
-                            </View>
-                        )}
-                    </View>
+        <HapticPressable onPress={onPress} style={styles.container}>
+            <View style={styles.textBlock}>
+                <View style={styles.topRow}>
+                    {isGroup && (
+                        <MaterialIcons
+                            name="group"
+                            size={n(18)}
+                            color={fg}
+                            style={styles.groupIcon}
+                        />
+                    )}
+                    <StyledText
+                        style={[styles.name, hasUnread && styles.bold]}
+                        numberOfLines={1}
+                    >
+                        {name}
+                    </StyledText>
+                </View>
+                <StyledText
+                    style={[styles.preview, { color: hasUnread ? fg : dim }]}
+                    numberOfLines={1}
+                >
+                    {preview}
+                </StyledText>
+            </View>
+            <View style={styles.meta}>
+                <StyledText style={[styles.time, { color: hasUnread ? fg : dim }]}>
+                    {formatChatTimestamp(timestamp)}
+                </StyledText>
+                <View style={styles.metaIcons}>
+                    {muted && (
+                        <MaterialIcons name="notifications-off" size={n(15)} color={dim} />
+                    )}
+                    {hasUnread && (
+                        <View style={[styles.badge, { backgroundColor: fg }]}>
+                            <StyledText
+                                style={[
+                                    styles.badgeText,
+                                    { color: invertColors ? "white" : "black" },
+                                ]}
+                            >
+                                {unreadCount > 99 ? "99+" : unreadCount}
+                            </StyledText>
+                        </View>
+                    )}
                 </View>
             </View>
         </HapticPressable>
@@ -88,46 +90,56 @@ export const ChatListItem = memo(function ChatListItem({
 
 const styles = StyleSheet.create({
     container: {
-        paddingVertical: n(14),
-        paddingHorizontal: n(20),
-        borderBottomWidth: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: n(10),
+        gap: n(10),
     },
-    content: {
-        gap: n(4),
+    textBlock: {
+        flex: 1,
+        gap: n(3),
     },
     topRow: {
         flexDirection: "row",
-        justifyContent: "space-between",
         alignItems: "center",
+        gap: n(5),
     },
-    bottomRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
+    groupIcon: {
+        marginTop: n(1),
     },
     name: {
-        fontSize: n(18),
-        flex: 1,
-        marginRight: n(8),
+        fontSize: n(20),
+        flexShrink: 1,
+    },
+    bold: {
+        fontWeight: "700",
+    },
+    preview: {
+        fontSize: n(15),
+    },
+    meta: {
+        alignItems: "flex-end",
+        gap: n(5),
     },
     time: {
         fontSize: n(13),
     },
-    preview: {
-        fontSize: n(15),
-        flex: 1,
-        marginRight: n(8),
+    metaIcons: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: n(5),
+        minHeight: n(20),
     },
     badge: {
         minWidth: n(20),
         height: n(20),
         borderRadius: n(10),
-        justifyContent: "center",
-        alignItems: "center",
         paddingHorizontal: n(6),
+        alignItems: "center",
+        justifyContent: "center",
     },
     badgeText: {
-        fontSize: n(11),
-        fontWeight: "bold",
+        fontSize: n(12),
+        fontWeight: "700",
     },
 });

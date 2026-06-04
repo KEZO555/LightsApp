@@ -1,154 +1,116 @@
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import { View, StyleSheet, Image } from "react-native";
+import { router } from "expo-router";
 import ContentContainer from "@/components/ContentContainer";
 import { StyledText } from "@/components/StyledText";
-import { StyledButton } from "@/components/StyledButton";
-import { useInvertColors } from "@/contexts/InvertColorsContext";
+import { CenteredMessage } from "@/components/CenteredMessage";
 import { useConnection } from "@/contexts/ConnectionContext";
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import { useServerConfig } from "@/contexts/ServerConfigContext";
+import { useInvertColors } from "@/contexts/InvertColorsContext";
 import { n } from "@/utils/scaling";
-import { router } from "expo-router";
 
-export default function QRSetupScreen() {
-    const { invertColors } = useInvertColors();
+export default function QrSetupScreen() {
     const { waStatus } = useConnection();
     const { wsState } = useWebSocket();
-    const { serverUrl } = useServerConfig();
-    const [qrImage, setQrImage] = useState<string | null>(null);
+    const { httpUrl } = useServerConfig();
+    const { invertColors } = useInvertColors();
 
-    const httpUrl = serverUrl.replace(/^ws/, "http");
+    // Re-fetch the PNG whenever the underlying QR string changes.
+    const qrUri = useMemo(
+        () => (waStatus.qr ? `${httpUrl}/api/qr/image?t=${encodeURIComponent(waStatus.qr.slice(0, 16))}` : null),
+        [waStatus.qr, httpUrl],
+    );
 
-    useEffect(() => {
-        if (waStatus.state !== "qr") {
-            setQrImage(null);
-            return;
-        }
-        const fetchQr = async () => {
-            try {
-                const res = await fetch(`${httpUrl}/api/qr`);
-                const data = await res.json();
-                if (data.qr) setQrImage(data.qr);
-            } catch (e) {
-                console.warn("Failed to fetch QR:", e);
-            }
-        };
-        fetchQr();
-        const interval = setInterval(fetchQr, 15000);
-        return () => clearInterval(interval);
-    }, [waStatus.state, httpUrl]);
-
-    const textColor = invertColors ? "#000" : "#fff";
-    const dimColor = invertColors ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)";
-
-    const renderContent = () => {
-        if (wsState !== "connected") {
-            return (
-                <View style={styles.center}>
-                    <StyledText style={[styles.title, { color: textColor }]}>
-                        Server Not Connected
-                    </StyledText>
-                    <StyledText style={[styles.hint, { color: dimColor }]}>
-                        Configure your server URL in Settings first
-                    </StyledText>
-                    <View style={styles.buttonContainer}>
-                        <StyledButton
-                            text="Open Settings"
-                            onPress={() => router.push("/(tabs)/settings" as any)}
-                        />
-                    </View>
-                </View>
-            );
-        }
-
-        if (waStatus.state === "connected") {
-            return (
-                <View style={styles.center}>
-                    <StyledText style={[styles.title, { color: textColor }]}>
-                        Connected
-                    </StyledText>
-                    <StyledText style={[styles.hint, { color: dimColor }]}>
-                        {waStatus.user?.name
-                            ? `Linked as ${waStatus.user.name}`
-                            : "WhatsApp is linked"}
-                    </StyledText>
-                    <View style={styles.buttonContainer}>
-                        <StyledButton text="Back to Chats" onPress={() => router.back()} />
-                    </View>
-                </View>
-            );
-        }
-
-        if (waStatus.state === "qr") {
-            return (
-                <View style={styles.center}>
-                    <StyledText style={[styles.title, { color: textColor }]}>
-                        Link WhatsApp
-                    </StyledText>
-                    <StyledText style={[styles.hint, { color: dimColor }]}>
-                        Open WhatsApp on your phone, go to Linked Devices, and scan this code
-                    </StyledText>
-                    {qrImage ? (
-                        <View style={[styles.qrContainer, { backgroundColor: "#fff", borderRadius: n(12) }]}>
-                            <Image
-                                source={{ uri: qrImage }}
-                                style={styles.qrImage}
-                                resizeMode="contain"
-                            />
-                        </View>
-                    ) : (
-                        <StyledText style={[styles.hint, { color: dimColor }]}>
-                            Loading QR code...
-                        </StyledText>
-                    )}
-                </View>
-            );
-        }
-
+    if (wsState !== "connected") {
         return (
-            <View style={styles.center}>
-                <StyledText style={[styles.title, { color: textColor }]}>
-                    {waStatus.state === "connecting" ? "Connecting..." : "Waiting for QR Code"}
-                </StyledText>
-                <StyledText style={[styles.hint, { color: dimColor }]}>
-                    Please wait while connecting to WhatsApp
-                </StyledText>
-            </View>
+            <ContentContainer headerTitle="Link Device">
+                <CenteredMessage
+                    message="Server offline"
+                    hint="Check your bridge address in Settings"
+                />
+            </ContentContainer>
         );
-    };
+    }
+
+    if (waStatus.state === "connected") {
+        return (
+            <ContentContainer headerTitle="Link Device">
+                <CenteredMessage
+                    message="Device linked"
+                    hint={waStatus.user?.name ? `Connected as ${waStatus.user.name}` : "WhatsApp is connected"}
+                />
+            </ContentContainer>
+        );
+    }
 
     return (
-        <ContentContainer headerTitle="Setup">
-            {renderContent()}
+        <ContentContainer headerTitle="Link Device">
+            <View style={styles.wrapper}>
+                <StyledText style={styles.heading}>Scan to link</StyledText>
+                {qrUri ? (
+                    <View style={[styles.qrFrame, { backgroundColor: "white" }]}>
+                        <Image source={{ uri: qrUri }} style={styles.qr} resizeMode="contain" />
+                    </View>
+                ) : (
+                    <View style={styles.qrFrame}>
+                        <StyledText style={{ color: "black" }}>Generating QR…</StyledText>
+                    </View>
+                )}
+                <View style={styles.steps}>
+                    <Step n={1} text="Open WhatsApp on your phone" invert={invertColors} />
+                    <Step n={2} text="Settings → Linked Devices → Link a Device" invert={invertColors} />
+                    <Step n={3} text="Point your phone at this screen" invert={invertColors} />
+                </View>
+            </View>
         </ContentContainer>
     );
 }
 
+function Step({ n: num, text, invert }: { n: number; text: string; invert: boolean }) {
+    const dim = invert ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.6)";
+    return (
+        <View style={styles.stepRow}>
+            <StyledText style={[styles.stepNum, { color: dim }]}>{num}.</StyledText>
+            <StyledText style={[styles.stepText, { color: dim }]}>{text}</StyledText>
+        </View>
+    );
+}
+
 const styles = StyleSheet.create({
-    center: {
-        flex: 1,
-        justifyContent: "center",
+    wrapper: {
+        width: "100%",
         alignItems: "center",
-        paddingHorizontal: n(30),
+        gap: n(20),
     },
-    title: {
-        fontSize: n(24),
-        textAlign: "center",
-        marginBottom: n(8),
+    heading: {
+        fontSize: n(22),
     },
-    hint: {
-        fontSize: n(15),
-        textAlign: "center",
-        marginBottom: n(24),
-    },
-    qrContainer: {
-        padding: n(16),
-    },
-    qrImage: {
+    qrFrame: {
         width: n(240),
         height: n(240),
+        borderRadius: n(12),
+        alignItems: "center",
+        justifyContent: "center",
+        padding: n(12),
     },
-    buttonContainer: {
-        marginTop: n(16),
+    qr: {
+        width: "100%",
+        height: "100%",
+    },
+    steps: {
+        width: "100%",
+        gap: n(10),
+    },
+    stepRow: {
+        flexDirection: "row",
+        gap: n(8),
+    },
+    stepNum: {
+        fontSize: n(15),
+    },
+    stepText: {
+        fontSize: n(15),
+        flexShrink: 1,
     },
 });

@@ -18,40 +18,36 @@ const WebSocketContext = createContext<WebSocketContextValue>({
 });
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
-    const { serverUrl } = useServerConfig();
+    const { serverUrl, loaded } = useServerConfig();
     const [wsState, setWsState] = useState<WSState>("disconnected");
     const appState = useRef(AppState.currentState);
 
     useEffect(() => {
-        const handler = (state: WSState) => setWsState(state);
-        wsClient.on("state", handler);
-        return () => { wsClient.removeListener("state", handler); };
+        const onState = (state: WSState) => setWsState(state);
+        wsClient.on("state", onState);
+        return () => wsClient.removeListener("state", onState);
     }, []);
 
     useEffect(() => {
-        if (serverUrl) {
-            wsClient.connect(serverUrl);
-        }
-        return () => { wsClient.disconnect(); };
-    }, [serverUrl]);
+        if (loaded && serverUrl) wsClient.connect(serverUrl);
+    }, [serverUrl, loaded]);
 
     useEffect(() => {
-        const sub = AppState.addEventListener("change", (nextState) => {
-            if (appState.current.match(/inactive|background/) && nextState === "active") {
-                if (serverUrl) wsClient.connect(serverUrl);
+        const sub = AppState.addEventListener("change", (next) => {
+            if (appState.current.match(/inactive|background/) && next === "active" && serverUrl) {
+                wsClient.connect(serverUrl);
             }
-            appState.current = nextState;
+            appState.current = next;
         });
         return () => sub.remove();
     }, [serverUrl]);
 
-    const send = useCallback((event: string, data: unknown) => {
-        wsClient.send(event, data);
-    }, []);
-
-    const request = useCallback(<T = unknown,>(event: string, data: unknown, timeout?: number) => {
-        return wsClient.request<T>(event, data, timeout);
-    }, []);
+    const send = useCallback((event: string, data: unknown) => wsClient.send(event, data), []);
+    const request = useCallback(
+        <T = unknown,>(event: string, data: unknown, timeout?: number) =>
+            wsClient.request<T>(event, data, timeout),
+        [],
+    );
 
     return (
         <WebSocketContext.Provider value={{ wsState, send, request }}>

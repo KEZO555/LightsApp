@@ -1,81 +1,71 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { View, TextInput, StyleSheet } from "react-native";
+import { router } from "expo-router";
 import ContentContainer from "@/components/ContentContainer";
 import { StyledText } from "@/components/StyledText";
 import { StyledButton } from "@/components/StyledButton";
-import { useInvertColors } from "@/contexts/InvertColorsContext";
 import { useServerConfig } from "@/contexts/ServerConfigContext";
+import { useInvertColors } from "@/contexts/InvertColorsContext";
 import { n } from "@/utils/scaling";
-import { router } from "expo-router";
 
 export default function ServerSettingsScreen() {
-    const { invertColors } = useInvertColors();
     const { serverUrl, setServerUrl } = useServerConfig();
-    const [url, setUrl] = useState(serverUrl);
+    const { invertColors } = useInvertColors();
+    const [value, setValue] = useState(serverUrl);
 
-    const textColor = invertColors ? "#000" : "#fff";
-    const dimColor = invertColors ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.4)";
-    const borderColor = invertColors ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.2)";
+    const fg = invertColors ? "black" : "white";
+    const dim = invertColors ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)";
 
-    const handleSave = async () => {
-        const trimmed = url.trim();
-        if (trimmed) {
-            await setServerUrl(trimmed);
-            router.back();
-        }
-    };
+    const save = useCallback(async () => {
+        let url = value.trim();
+        if (url && !/^wss?:\/\//.test(url)) url = `ws://${url}`;
+        await setServerUrl(url);
+        router.back();
+    }, [value, setServerUrl]);
 
     return (
-        <ContentContainer headerTitle="Server">
-            <View style={styles.content}>
-                <StyledText style={[styles.label, { color: dimColor }]}>
-                    WebSocket URL
+        <ContentContainer headerTitle="Bridge Server">
+            <View style={styles.block}>
+                <StyledText style={[styles.hint, { color: dim }]}>
+                    Address of your self-hosted Baileys bridge.
                 </StyledText>
                 <TextInput
-                    style={[styles.input, { color: textColor, borderColor }]}
-                    value={url}
-                    onChangeText={setUrl}
+                    style={[styles.input, { color: fg, borderBottomColor: fg }]}
+                    value={value}
+                    onChangeText={setValue}
                     placeholder="ws://192.168.1.100:3001"
-                    placeholderTextColor={dimColor}
+                    placeholderTextColor={dim}
+                    cursorColor={fg}
+                    selectionColor={fg}
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="url"
+                    allowFontScaling={false}
                 />
-                <StyledText style={[styles.hint, { color: dimColor }]}>
-                    Enter the WebSocket URL of your LightsApp server.{"\n"}
-                    Example: ws://192.168.1.100:3001
+                <StyledText style={[styles.example, { color: dim }]}>
+                    Use ws:// on a local network, wss:// for a secured remote server.
                 </StyledText>
-                <View style={styles.buttonRow}>
-                    <StyledButton text="Save" onPress={handleSave} />
-                </View>
             </View>
+            <StyledButton text="Save" onPress={save} underline />
         </ContentContainer>
     );
 }
 
 const styles = StyleSheet.create({
-    content: {
-        padding: n(20),
+    block: {
+        width: "100%",
         gap: n(12),
     },
-    label: {
-        fontSize: n(13),
-        textTransform: "uppercase",
-        letterSpacing: n(1),
+    hint: {
+        fontSize: n(15),
     },
     input: {
-        fontSize: n(16),
+        fontSize: n(24),
         fontFamily: "PublicSans-Regular",
-        borderWidth: 1,
-        borderRadius: n(8),
-        paddingHorizontal: n(14),
-        paddingVertical: n(12),
+        borderBottomWidth: n(1),
+        paddingVertical: n(4),
     },
-    hint: {
+    example: {
         fontSize: n(13),
-        lineHeight: n(18),
-    },
-    buttonRow: {
-        marginTop: n(8),
     },
 });

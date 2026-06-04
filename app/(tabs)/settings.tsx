@@ -17,56 +17,45 @@ export default function SettingsScreen() {
     const { serverUrl } = useServerConfig();
     const { invertColors } = useInvertColors();
 
-    const dimColor = invertColors ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)";
+    const dim = invertColors ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)";
 
-    const connectionLabel =
+    const status =
         wsState !== "connected"
             ? "Server offline"
             : waStatus.state === "connected"
-                ? `Connected as ${waStatus.user?.name || "Unknown"}`
+                ? `Linked${waStatus.user?.name ? ` — ${waStatus.user.name}` : ""}`
                 : waStatus.state === "qr"
                     ? "Waiting for QR scan"
-                    : "Connecting to WhatsApp...";
+                    : "Linking…";
+
+    const dotColor =
+        wsState === "connected" && waStatus.state === "connected"
+            ? invertColors
+                ? "black"
+                : "white"
+            : dim;
 
     return (
         <ContentContainer headerTitle="Settings" hideBackButton>
             <View style={styles.section}>
-                <StyledText style={[styles.sectionTitle, { color: dimColor }]}>
-                    Connection
-                </StyledText>
+                <StyledText style={[styles.label, { color: dim }]}>CONNECTION</StyledText>
                 <SelectorButton
-                    label="Server"
+                    label="Bridge server"
                     value={serverUrl.replace(/^wss?:\/\//, "")}
                     href={"/settings/server" as any}
                 />
                 <View style={styles.statusRow}>
-                    <View
-                        style={[
-                            styles.statusDot,
-                            {
-                                backgroundColor:
-                                    wsState === "connected" && waStatus.state === "connected"
-                                        ? "#4caf50"
-                                        : wsState === "connected"
-                                            ? "#ff9800"
-                                            : "#f44336",
-                            },
-                        ]}
-                    />
-                    <StyledText style={[styles.statusText, { color: dimColor }]}>
-                        {connectionLabel}
-                    </StyledText>
+                    <View style={[styles.dot, { backgroundColor: dotColor }]} />
+                    <StyledText style={[styles.statusText, { color: dim }]}>{status}</StyledText>
                 </View>
             </View>
 
             <Separator />
 
             <View style={styles.section}>
-                <StyledText style={[styles.sectionTitle, { color: dimColor }]}>
-                    WhatsApp
-                </StyledText>
+                <StyledText style={[styles.label, { color: dim }]}>WHATSAPP</StyledText>
                 <StyledButton
-                    text="Link Device (QR Code)"
+                    text={waStatus.state === "connected" ? "Re-link Device" : "Link Device"}
                     onPress={() => router.push("/qr-setup" as any)}
                 />
             </View>
@@ -74,9 +63,7 @@ export default function SettingsScreen() {
             <Separator />
 
             <View style={styles.section}>
-                <StyledText style={[styles.sectionTitle, { color: dimColor }]}>
-                    Appearance
-                </StyledText>
+                <StyledText style={[styles.label, { color: dim }]}>APPEARANCE</StyledText>
                 <StyledButton
                     text="Customise"
                     onPress={() => router.push("/settings/customise" as any)}
@@ -88,22 +75,19 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
     section: {
-        paddingHorizontal: n(20),
-        paddingVertical: n(12),
+        width: "100%",
         gap: n(8),
     },
-    sectionTitle: {
+    label: {
         fontSize: n(13),
-        textTransform: "uppercase",
         letterSpacing: n(1),
     },
     statusRow: {
         flexDirection: "row",
         alignItems: "center",
         gap: n(8),
-        paddingVertical: n(4),
     },
-    statusDot: {
+    dot: {
         width: n(8),
         height: n(8),
         borderRadius: n(4),

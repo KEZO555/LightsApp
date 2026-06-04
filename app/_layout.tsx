@@ -1,21 +1,18 @@
 import React, { useEffect } from "react";
 import { Stack } from "expo-router";
-import { HapticProvider } from "../contexts/HapticContext";
 import { useFonts } from "expo-font";
 import { setStatusBarHidden } from "expo-status-bar";
-import {
-    InvertColorsProvider,
-    useInvertColors,
-} from "@/contexts/InvertColorsContext";
-import { ServerConfigProvider } from "@/contexts/ServerConfigContext";
-import { WebSocketProvider } from "@/contexts/WebSocketContext";
-import { ConnectionProvider } from "@/contexts/ConnectionContext";
-import { ChatsProvider } from "@/contexts/ChatsContext";
-import { MessagesProvider } from "@/contexts/MessagesContext";
-import { ContactsProvider } from "@/contexts/ContactsContext";
 import * as SystemUI from "expo-system-ui";
 import * as NavigationBar from "expo-navigation-bar";
 import * as SplashScreen from "expo-splash-screen";
+import { HapticProvider } from "@/contexts/HapticContext";
+import { InvertColorsProvider, useInvertColors } from "@/contexts/InvertColorsContext";
+import { ServerConfigProvider } from "@/contexts/ServerConfigContext";
+import { WebSocketProvider } from "@/contexts/WebSocketContext";
+import { ConnectionProvider } from "@/contexts/ConnectionContext";
+import { ContactsProvider } from "@/contexts/ContactsContext";
+import { ChatsProvider } from "@/contexts/ChatsContext";
+import { MessagesProvider } from "@/contexts/MessagesContext";
 
 function RootNavigation() {
     const { invertColors } = useInvertColors();
@@ -30,9 +27,7 @@ function RootNavigation() {
             screenOptions={{
                 headerShown: false,
                 animation: "none",
-                contentStyle: {
-                    backgroundColor: invertColors ? "white" : "black",
-                },
+                contentStyle: { backgroundColor: invertColors ? "white" : "black" },
             }}
         >
             <Stack.Screen name="(tabs)" />
@@ -40,9 +35,9 @@ function RootNavigation() {
             <Stack.Screen name="qr-setup" />
             <Stack.Screen name="new-chat" />
             <Stack.Screen name="media-viewer" />
+            <Stack.Screen name="settings/server" />
             <Stack.Screen name="settings/customise" />
             <Stack.Screen name="settings/customise-interface" />
-            <Stack.Screen name="settings/server" />
             <Stack.Screen name="confirm" />
         </Stack>
     );
@@ -58,14 +53,10 @@ export default function RootLayout() {
     }, []);
 
     useEffect(() => {
-        if (fontsLoaded || fontError) {
-            SplashScreen.hideAsync();
-        }
+        if (fontsLoaded || fontError) SplashScreen.hideAsync();
     }, [fontsLoaded, fontError]);
 
-    if (!fontsLoaded && !fontError) {
-        return null;
-    }
+    if (!fontsLoaded && !fontError) return null;
 
     return (
         <InvertColorsProvider>

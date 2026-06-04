@@ -37,12 +37,14 @@
 
 ## How It Works
 
-LightsApp connects to a self-hosted WhatsApp Web bridge server via WebSocket. The server handles the WhatsApp Web protocol, and the app provides a minimal UI optimized for the Light Phone 3's e-ink display.
+LightsApp connects to your own self-hosted bridge server (included in [`server/`](./server)) over WebSocket. The bridge speaks the WhatsApp Web multi-device protocol via [Baileys](https://github.com/WhiskeySockets/Baileys) — no Chromium, no third-party service like Beeper. Your messages and WhatsApp session never leave hardware you control. The app is a minimal UI optimized for the Light Phone 3's e-ink display.
 
 **Architecture:**
 ```
-Light Phone 3 (LightsApp) ←→ WebSocket ←→ Bridge Server ←→ WhatsApp Web
+Light Phone 3 (LightsApp)  ←WebSocket→  Bridge (server/, Baileys)  ←WA Web protocol→  WhatsApp
 ```
+
+> **Why a bridge?** WhatsApp has no official API for personal accounts. Every personal client (WhatsApp Web, Beeper, etc.) registers as a *linked device*, which needs a persistent, authenticated connection that can't run on the phone alone. The bridge holds that session on an always-on machine you own (a Raspberry Pi, NAS, VPS, or spare laptop).
 
 ## Installation
 
@@ -66,10 +68,27 @@ eas build -p android --profile production --local
 
 ## Setup
 
-1. **Set up a WhatsApp Web bridge server** (e.g. using [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js) or similar)
-2. Open LightsApp → **Settings** → Enter your server URL
-3. Go to **QR Setup** and scan the QR code with WhatsApp on your main phone
-4. Start chatting!
+### 1. Run the bridge server
+
+On an always-on machine (Raspberry Pi, NAS, VPS, spare laptop):
+
+```bash
+cd server
+bun install      # or: npm install
+bun start        # starts the bridge on port 3001
+```
+
+The bridge stores its WhatsApp session in `server/auth_state/` (git-ignored). Keep it private — delete the folder to unpair.
+
+### 2. Connect the app
+
+1. Open LightsApp → **Settings → Bridge server** → enter the address, e.g. `ws://192.168.1.100:3001`
+   (use `ws://` on a LAN, `wss://` behind a TLS-terminating proxy for remote access)
+2. Go to **Settings → Link Device** and scan the QR with WhatsApp on your main phone
+   (*WhatsApp → Settings → Linked Devices → Link a Device*)
+3. Start chatting.
+
+> **Note on voice notes:** the phone records standard audio; for WhatsApp to show a proper voice-note waveform on the recipient side, transcoding to Opus may be required depending on your device. Text, photos, and incoming media/voice playback work out of the box.
 
 ## Commands
 
@@ -82,10 +101,16 @@ bun run generate-icon       # Generate icon from app name
 
 ## Tech Stack
 
+**App**
 - [Expo](https://expo.dev) + [React Native](https://reactnative.dev)
 - [Expo Router](https://docs.expo.dev/router/introduction/) for navigation
-- WebSocket for real-time communication
+- WebSocket for real-time sync
 - Built on the [light-template](https://github.com/vandamd/light-template) for LightOS
+
+**Bridge** (`server/`)
+- [Baileys](https://github.com/WhiskeySockets/Baileys) — WhatsApp Web multi-device protocol
+- Express + `ws` for REST + WebSocket
+- In-memory store for chats/messages, lazy media download with disk cache
 
 ## Detailed Docs
 
