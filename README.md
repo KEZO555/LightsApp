@@ -88,7 +88,7 @@ The bridge stores its WhatsApp session in `server/auth_state/` (git-ignored). Ke
    (*WhatsApp → Settings → Linked Devices → Link a Device*)
 3. Start chatting.
 
-> **Note on voice notes:** the phone records standard audio; for WhatsApp to show a proper voice-note waveform on the recipient side, transcoding to Opus may be required depending on your device. Text, photos, and incoming media/voice playback work out of the box.
+> **Voice notes:** the phone records standard audio and the bridge transcodes it to Ogg/Opus (what WhatsApp expects) using **ffmpeg**. Install ffmpeg on the server machine (`apt install ffmpeg`, `brew install ffmpeg`, etc.) for proper voice-note waveforms. Without ffmpeg the bridge falls back to sending the raw audio (best-effort). Text, photos, and incoming media/voice playback work regardless.
 
 ## Commands
 
@@ -98,6 +98,13 @@ eas build -p android --profile production --local  # Build APK locally
 bun run sync-version        # Sync version across files
 bun run generate-icon       # Generate icon from app name
 ```
+
+## CI / Releases
+
+`.github/workflows/build.yml` builds a production APK and publishes a GitHub
+Release. Trigger it manually from the **Actions** tab (`workflow_dispatch`).
+It requires an `EXPO_TOKEN` repository secret (an [Expo access token](https://expo.dev/settings/access-tokens))
+and tags the release with the version from `app.json`.
 
 ## Tech Stack
 

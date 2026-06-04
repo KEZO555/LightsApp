@@ -15,6 +15,7 @@ import pino from "pino";
 import { join } from "path";
 import { mkdirSync, existsSync } from "fs";
 import { EventEmitter } from "events";
+import { transcodeToOpus } from "./audio.js";
 import type {
   ChatInfo,
   MessageInfo,
@@ -511,8 +512,11 @@ export class WhatsAppClient extends EventEmitter {
 
   async sendVoice(chatId: string, buffer: Buffer): Promise<MessageInfo | null> {
     if (!this.sock) return null;
+    // WhatsApp voice notes must be Ogg/Opus. Transcode when ffmpeg is
+    // available; otherwise fall back to the raw bytes (best-effort).
+    const opus = await transcodeToOpus(buffer);
     const sent = await this.sock.sendMessage(chatId, {
-      audio: buffer,
+      audio: opus ?? buffer,
       mimetype: "audio/ogg; codecs=opus",
       ptt: true,
     });
