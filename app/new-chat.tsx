@@ -6,52 +6,77 @@ import CustomScrollView from "@/components/CustomScrollView";
 import { SearchInput } from "@/components/SearchInput";
 import { ListItem } from "@/components/ListItem";
 import { CenteredMessage } from "@/components/CenteredMessage";
+import { StyledText } from "@/components/StyledText";
+import { HapticPressable } from "@/components/HapticPressable";
 import { useContacts } from "@/contexts/ContactsContext";
 import { n } from "@/utils/scaling";
 
 export default function NewChatScreen() {
-    const { contacts } = useContacts();
-    const [search, setSearch] = useState("");
+    const { contacts, resolveNumber } = useContacts();
+    const [query, setQuery] = useState("");
+    const [resolving, setResolving] = useState(false);
 
-    const filteredContacts = useMemo(() => {
-        const nonGroup = contacts.filter((c) => !c.isGroup);
-        if (!search) return nonGroup.sort((a, b) => a.name.localeCompare(b.name));
-        const q = search.toLowerCase();
-        return nonGroup
-            .filter((c) => c.name.toLowerCase().includes(q))
-            .sort((a, b) => a.name.localeCompare(b.name));
-    }, [contacts, search]);
+    const digits = query.replace(/[^0-9]/g, "");
+    const looksLikeNumber = digits.length >= 6;
 
-    const handleContactPress = useCallback((contactId: string, contactName: string) => {
-        router.replace({ pathname: "/chat", params: { id: contactId, name: contactName } } as any);
+    const filtered = useMemo(() => {
+        if (!query) return contacts;
+        const q = query.toLowerCase();
+        return contacts.filter(
+            (c) => c.name.toLowerCase().includes(q) || c.id.includes(digits),
+        );
+    }, [contacts, query, digits]);
+
+    const openChat = useCallback((id: string, name: string) => {
+        router.replace({ pathname: "/chat", params: { id, name } } as any);
     }, []);
+
+    const messageNumber = useCallback(async () => {
+        if (resolving) return;
+        setResolving(true);
+        try {
+            const { jid, exists } = await resolveNumber(digits);
+            if (exists) openChat(jid, `+${digits}`);
+        } finally {
+            setResolving(false);
+        }
+    }, [digits, resolveNumber, openChat, resolving]);
 
     return (
         <ContentContainer headerTitle="New Chat">
-            <View style={styles.searchContainer}>
+            <View style={styles.searchRow}>
                 <SearchInput
-                    value={search}
-                    onChangeText={setSearch}
-                    placeholder="Search contacts..."
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholder="Name or number"
                     autoFocus
                 />
             </View>
-            {filteredContacts.length === 0 ? (
+
+            {looksLikeNumber && (
+                <HapticPressable onPress={messageNumber} style={styles.numberRow}>
+                    <StyledText style={styles.numberText}>
+                        {resolving ? "Checking…" : `Message +${digits}`}
+                    </StyledText>
+                </HapticPressable>
+            )}
+
+            {filtered.length === 0 ? (
                 <CenteredMessage
-                    message="No contacts found"
-                    hint={search ? "Try a different search" : "Contacts will appear after connecting to WhatsApp"}
+                    message={query ? "No contacts found" : "No contacts yet"}
+                    hint={query ? "Enter a full number to start a chat" : "Contacts sync after linking"}
                 />
             ) : (
                 <CustomScrollView
-                    data={filteredContacts}
+                    data={filtered}
+                    keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
                         <ListItem
                             primaryText={item.name}
                             secondaryText={item.id.split("@")[0]}
-                            onPress={() => handleContactPress(item.id, item.name)}
+                            onPress={() => openChat(item.id, item.name)}
                         />
                     )}
-                    keyExtractor={(item) => item.id}
                 />
             )}
         </ContentContainer>
@@ -59,8 +84,15 @@ export default function NewChatScreen() {
 }
 
 const styles = StyleSheet.create({
-    searchContainer: {
-        paddingHorizontal: n(20),
-        paddingBottom: n(8),
+    searchRow: {
+        width: "100%",
+    },
+    numberRow: {
+        width: "100%",
+        paddingVertical: n(6),
+    },
+    numberText: {
+        fontSize: n(22),
+        textDecorationLine: "underline",
     },
 });

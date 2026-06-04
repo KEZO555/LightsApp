@@ -17,34 +17,22 @@ export default function ChatsScreen() {
     const { wsState } = useWebSocket();
     const [search, setSearch] = useState("");
 
-    const filteredChats = useMemo(() => {
-        if (!search) return chats.filter((c) => !c.archived);
+    const visibleChats = useMemo(() => {
+        const active = chats.filter((c) => !c.archived);
+        if (!search) return active;
         const q = search.toLowerCase();
-        return chats.filter(
-            (c) => !c.archived && c.name.toLowerCase().includes(q)
-        );
+        return active.filter((c) => c.name.toLowerCase().includes(q));
     }, [chats, search]);
 
-    const handleChatPress = useCallback((chatId: string, chatName: string) => {
-        router.push({ pathname: "/chat", params: { id: chatId, name: chatName } } as any);
+    const openChat = useCallback((id: string, name: string) => {
+        router.push({ pathname: "/chat", params: { id, name } } as any);
     }, []);
 
-    const handleNewChat = useCallback(() => {
-        router.push("/new-chat" as any);
-    }, []);
+    const serverOffline = wsState !== "connected";
+    const needsLink = !serverOffline && waStatus.state !== "connected";
 
-    const isConnected = wsState === "connected" && waStatus.state === "connected";
-    const needsSetup = waStatus.state === "qr" || waStatus.state === "disconnected";
-
-    const headerTitle = isConnected
-        ? "Chats"
-        : wsState !== "connected"
-            ? "Connecting..."
-            : waStatus.state === "qr"
-                ? "Scan QR"
-                : "Chats";
-
-    if (needsSetup && chats.length === 0) {
+    // Onboarding state: nothing to show yet.
+    if ((serverOffline || needsLink) && chats.length === 0) {
         return (
             <ContentContainer
                 headerTitle="LightsApp"
@@ -53,37 +41,46 @@ export default function ChatsScreen() {
                 onRightIconPress={() => router.push("/qr-setup" as any)}
             >
                 <CenteredMessage
-                    message={wsState !== "connected" ? "Not connected to server" : "WhatsApp not linked"}
-                    hint={wsState !== "connected" ? "Configure server in Settings" : "Tap QR icon to link your WhatsApp"}
+                    message={serverOffline ? "Not connected to server" : "WhatsApp not linked"}
+                    hint={
+                        serverOffline
+                            ? "Set your bridge address in Settings"
+                            : "Tap the QR icon to link your phone"
+                    }
                 />
             </ContentContainer>
         );
     }
 
+    const title = serverOffline
+        ? "Connecting…"
+        : waStatus.state === "qr"
+            ? "Scan QR"
+            : waStatus.state !== "connected"
+                ? "Linking…"
+                : "Chats";
+
     return (
         <ContentContainer
-            headerTitle={headerTitle}
+            headerTitle={title}
             hideBackButton
             rightIcon="edit"
-            onRightIconPress={handleNewChat}
+            onRightIconPress={() => router.push("/new-chat" as any)}
         >
-            {chats.length > 5 && (
+            {chats.length > 6 && (
                 <View style={styles.searchContainer}>
-                    <SearchInput
-                        value={search}
-                        onChangeText={setSearch}
-                        placeholder="Search chats..."
-                    />
+                    <SearchInput value={search} onChangeText={setSearch} placeholder="Search" />
                 </View>
             )}
-            {filteredChats.length === 0 ? (
+            {visibleChats.length === 0 ? (
                 <CenteredMessage
                     message={search ? "No chats found" : "No conversations yet"}
-                    hint={search ? "Try a different search" : "Start a new chat"}
+                    hint={search ? "Try another search" : "Tap edit to start one"}
                 />
             ) : (
                 <CustomScrollView
-                    data={filteredChats}
+                    data={visibleChats}
+                    keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
                         <ChatListItem
                             name={item.name}
@@ -92,10 +89,9 @@ export default function ChatsScreen() {
                             timestamp={item.timestamp}
                             unreadCount={item.unreadCount}
                             muted={item.muted}
-                            onPress={() => handleChatPress(item.id, item.name)}
+                            onPress={() => openChat(item.id, item.name)}
                         />
                     )}
-                    keyExtractor={(item) => item.id}
                 />
             )}
         </ContentContainer>
@@ -104,7 +100,7 @@ export default function ChatsScreen() {
 
 const styles = StyleSheet.create({
     searchContainer: {
-        paddingHorizontal: n(20),
+        width: "100%",
         paddingBottom: n(8),
     },
 });

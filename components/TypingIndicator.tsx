@@ -1,70 +1,57 @@
-import React, { memo, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Animated } from "react-native";
 import { useInvertColors } from "@/contexts/InvertColorsContext";
 import { n } from "@/utils/scaling";
 
-export const TypingIndicator = memo(function TypingIndicator() {
+/** Three pulsing dots shown at the bottom of a chat while the peer types. */
+export function TypingIndicator() {
     const { invertColors } = useInvertColors();
-    const dotColor = invertColors ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.4)";
-    const bgColor = invertColors ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.08)";
-
-    const dot1 = useRef(new Animated.Value(0)).current;
-    const dot2 = useRef(new Animated.Value(0)).current;
-    const dot3 = useRef(new Animated.Value(0)).current;
+    const color = invertColors ? "black" : "white";
+    const border = invertColors ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.35)";
+    const dots = [useRef(new Animated.Value(0.3)).current, useRef(new Animated.Value(0.3)).current, useRef(new Animated.Value(0.3)).current];
 
     useEffect(() => {
-        const animate = (dot: Animated.Value, delay: number) =>
+        const animations = dots.map((dot, i) =>
             Animated.loop(
                 Animated.sequence([
-                    Animated.delay(delay),
-                    Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
-                    Animated.timing(dot, { toValue: 0, duration: 300, useNativeDriver: true }),
-                ])
-            );
-
-        const a1 = animate(dot1, 0);
-        const a2 = animate(dot2, 200);
-        const a3 = animate(dot3, 400);
-        a1.start();
-        a2.start();
-        a3.start();
-
-        return () => { a1.stop(); a2.stop(); a3.stop(); };
-    }, [dot1, dot2, dot3]);
-
-    const renderDot = (anim: Animated.Value) => (
-        <Animated.View
-            style={[
-                styles.dot,
-                { backgroundColor: dotColor },
-                { transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] },
-                { opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) },
-            ]}
-        />
-    );
+                    Animated.delay(i * 150),
+                    Animated.timing(dot, { toValue: 1, duration: 350, useNativeDriver: true }),
+                    Animated.timing(dot, { toValue: 0.3, duration: 350, useNativeDriver: true }),
+                ]),
+            ),
+        );
+        animations.forEach((a) => a.start());
+        return () => animations.forEach((a) => a.stop());
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
-        <View style={styles.wrapper}>
-            <View style={[styles.container, { backgroundColor: bgColor }]}>
-                {renderDot(dot1)}
-                {renderDot(dot2)}
-                {renderDot(dot3)}
+        <View style={styles.row}>
+            <View style={[styles.bubble, { borderColor: border }]}>
+                {dots.map((dot, i) => (
+                    <Animated.View
+                        key={i}
+                        style={[styles.dot, { backgroundColor: color, opacity: dot }]}
+                    />
+                ))}
             </View>
         </View>
     );
-});
+}
 
 const styles = StyleSheet.create({
-    wrapper: {
-        paddingHorizontal: n(12),
-        paddingVertical: n(2),
+    row: {
+        paddingHorizontal: n(14),
+        marginVertical: n(3),
         alignItems: "flex-start",
     },
-    container: {
+    bubble: {
         flexDirection: "row",
         gap: n(4),
-        borderRadius: n(12),
-        paddingHorizontal: n(14),
+        borderWidth: n(1),
+        borderRadius: n(14),
+        borderBottomLeftRadius: n(3),
+        paddingHorizontal: n(12),
         paddingVertical: n(10),
     },
     dot: {

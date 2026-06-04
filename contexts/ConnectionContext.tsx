@@ -1,11 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { wsClient } from "@/utils/websocket";
-
-interface ConnectionStatus {
-    state: "disconnected" | "connecting" | "qr" | "connected";
-    qr?: string;
-    user?: { id: string; name: string };
-}
+import type { ConnectionStatus } from "@/utils/types";
 
 interface ConnectionContextValue {
     waStatus: ConnectionStatus;
@@ -19,11 +14,9 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
     const [waStatus, setWaStatus] = useState<ConnectionStatus>({ state: "disconnected" });
 
     useEffect(() => {
-        const handler = (data: ConnectionStatus) => {
-            setWaStatus(data);
-        };
-        wsClient.on("connection:update", handler);
-        return () => { wsClient.removeListener("connection:update", handler); };
+        const onUpdate = (status: ConnectionStatus) => setWaStatus(status);
+        wsClient.on("connection:update", onUpdate);
+        return () => wsClient.removeListener("connection:update", onUpdate);
     }, []);
 
     return (
@@ -34,4 +27,3 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
 }
 
 export const useConnection = () => useContext(ConnectionContext);
-export type { ConnectionStatus };
