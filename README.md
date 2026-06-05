@@ -101,10 +101,12 @@ bun run generate-icon       # Generate icon from app name
 
 ## CI / Releases
 
-`.github/workflows/build.yml` builds a production APK and publishes a GitHub
-Release. Trigger it manually from the **Actions** tab (`workflow_dispatch`).
-It requires an `EXPO_TOKEN` repository secret (an [Expo access token](https://expo.dev/settings/access-tokens))
-and tags the release with the version from `app.json`.
+`.github/workflows/build.yml` builds a release APK with Gradle (`./gradlew
+assembleRelease`) straight from the committed `android/` project and publishes
+a GitHub Release. Trigger it manually from the **Actions** tab
+(`workflow_dispatch`). No Expo account or secrets required; the release is
+tagged with the version from `app.json` (debug-keystore signed — stable across
+builds, fine for sideloading/Obtainium).
 
 ## Tech Stack
 
